@@ -1,209 +1,152 @@
-# An introduction to distributed systems
-
+# 分布式系统的介绍
 Copyright 2014, 2016, 2017 Kyle Kingsbury; Jepsen, LLC.
 
-This outline accompanies a 12-16 hour [overview class on distributed systems
-fundamentals](http://jepsen.io/training.html). The course aims to introduce
-software engineers to the practical basics of distributed systems, through
-lecture and discussion.  Participants will gain an intuitive understanding of
-key distributed systems terms, an overview of the algorithmic landscape, and
-explore production concerns.
+阅读下面的大纲,能基本了解分布式系统中几个关键分布式术语、分布式算法的概述和关于生产环境问题的探讨;
 
-## What makes a thing distributed?
+## 是什么让一个东西变成分布式的?
 
 Lamport, 1987:
 
 >  A distributed system is one in which the failure of a computer
 >  you didn't even know existed can render your own computer
->  unusable.
+>  unusable.(分布式系统这么一种系统, 1. 系统节点的错误不会被用户感知 2. 更加不会因此让你的计算机变得不可用)
 
-- First glance: \*nix boxen in our colo, running processes communicating via
-  TCP or UDP.
-  - Or boxes in EC2, Rackspace, etc
-  - Maybe communicating over InfiniBand
-  - Separated by inches and a LAN
-  - Or by kilometers and the internet
-- Most mobile apps are also taking part in a distributed system
-  - Communicating over a truly awful network
-  - Same goes for desktop web browsers
-  - It's not just servers--it's clients too!
-- More generally: distributed systems are
-  - Made up of parts which interact
-  - Slowly
-  - And often unreliably
-  - Whatever those mean for you
-- So also:
-  - Redundant CPUs in an airplane
-  - ATMs and Point-of-Sale terminals
-  - Space probes
-  - Paying bills
-  - Doctors making referrals
-  - Drunk friends trying to make plans via text message
-  - Every business meeting ever
+## 节点和网络
 
-## Nodes and networks
+- 我们将分布式系统中的每一个组成部分称之为*节点*
+  - 也可以称为: *进程*、*agent*和*actor*
 
-- We call each part of a distributed system a *node*
-  - Also known as *processes*, *agents*, or *actors*
+### 节点
 
-### Nodes
-
-- Characteristic latency
-  - Operations inside a node are "fast"
-  - Operations between nodes are "slow"
-  - What's fast or slow depends on what the system does
-- Nodes are reliable
-  - Fail as a unit
-  - You know when problems occur
-  - State is coherent
-  - State transitions occur in a nice, orderly fashion
-  - Typically modeled as some kind of single-threaded state machine
-- A node could *itself* be a distributed system
-  - But so long as that system as a whole provides "fast, coherent"
-    operations, we can treat it as a single node.
-- Formal models for processes
-  - Communicating Sequential Processes
+- latency的特征
+  - 在同一个节点的操作被叫做"fast"
+  - 在两个节点的操作被叫做"slow"
+- 节点是可靠的
+  - 失败的单元是整个节点
+  - 你能感知问题的发生
+  - 状态是连贯的
+  - 状态转换以良好，有序的方式发生
+  - 经典的建模是单线程状态机
+- 节点本身也作为分布式系统
+- 关于process正式的建模方式
+  - Communicating Sequential Processes[go里面的csp]
   - Pi-calculus
   - Ambient calculus
-  - Actor model
-- Formal models for node failure
-  - Crash-stop
-  - Crash-recover
-  - Crash-amnesia
-  - Byzantine
+  - Actor model[erlang]
+- 节点故障的正式建模方式
+  - Crash-stop[crash就自动停止]
+  - Crash-recover[crash之后会恢复]
+  - Crash-amnesia[crash之后会失忆]
+  - Byzantine[拜占庭问题]
 
-### Networks as message flows
+### 网络作为消息传输的通道
 
-- Nodes interact via a *network*
-  - Humans interact via spoken words
-  - Particles interact via fields
-  - Computers interact via IP, or UDP, or SCTP, or ...
-- We model those interactions as discrete *messages* sent between nodes
-- Messages take *time* to propagate
-  - This is the "slow" part of the distributed system
-  - We call this "latency"
-- Messages can often be lost
-  - This is another "unreliable" part of the distributed system
-- Network is rarely homogenous
-  - Some links slower/smaller/more-likely-to-fail than others
+- 分布式节点之间的交互方式是通过网络
+  - 人之间交互方式通过语言
+  - 粒子通过field进行交互
+  - 计算机之间的交互通过tcp、udp、sctp等等
+- 我们将这些交互建模为节点之间发送的离散消息
+- 发送消息是需要时间的
+  - 这也是分布式系统*slow*的一部分
+  - 我们称这个为latency
+- 消息在网络传输过程中尝尝可能会被丢失
+  - 这也是分布式系统不可靠的一部分
+- 网络很少是同质的
+  - 一些链接相比于其他的链接更加慢、更加容易出错等
 
-### Causality diagrams
+### 同步网络
 
-- We can represent the interaction of nodes and the network as a diagram
-  - Time flows left-to-right, or top-to-bottom
-  - Nodes are lines in the direction of time (because they stay in place)
-  - Messages as slanted paths *connecting* nodes
+- 节点以锁步的方式执行
+- 消息延迟有上限
+- 高效且完美的全局时钟
+- 证明一个东西比较容易
 
-### Synchronous networks
+### 半同步的网络
 
-- Nodes execute in lockstep: time between node steps is always 1.
-- Message delay is bounded
-- Effectively a perfect global clock
-- Easy to prove stuff about
-  - You probably don't have one
+- 其他的都类似于同步网络，只有时钟不再是绝对，而是近似;
 
-### Semi-synchronous networks
+### 异步网络
 
-- Like synchronous, but the clock is only approximate, e.g. in [c, 1]
-
-### Asynchronous networks
-
-- Execute independently, whenever: step time is anywhere in [0, 1]
-- Unbounded message delays
-- No global clocks
-- Weaker than semi- or synchronous networks
-  - Implies certain algorithms can't be as efficient
-  - Implies certain algorithms are *impossible*
-  - See e.g. Attiya & Mavronicolas, "Efficiency of Semi-Synchronous vs
-    Asynchronous Networks"
-- IP networks are definitely asynchronous
-  - But *in practice* the really pathological stuff doesn't happen
-  - Most networks recover in seconds to weeks, not "never"
+- 节点之间执行是相互独立,在任何时候，step time可能是处于[0,1]之间
+- 消息延迟无上限
+- 没有全局时钟
+- ip网络被定义是异步网络
+  - 但是在现实情况中很多变态的情况是不会发生的
+  - 大部分网络恢复可能是几秒也可能是几周，但是不会是永远不恢复
     - Conversely, human timescales are on the orders of seconds to weeks
     - So we can't pretend the problems don't exist
 
-## When networks go wrong
+## 当网络出现错误的时候
 
-- Asynchronous networks are allowed to
-  - Duplicate
-  - Delay
-  - Drop
-  - Reorder
-- Drops and delays are indistinguishable
-- Byzantine networks are allowed to mess with messages *arbitrarily*
-  - Including rewriting their content
-  - They mostly don't happen in real networks
-    - Mostly
+- 异步网络允许下面的错误:
+  - 重复
+  - 延迟
+  - 丢包
+  - 乱序
+- 丢包和延迟是难以区分的; 因为作为客户端其实没有收到包的情况下，它无法区分是丢包还是延迟;
+- 拜占庭网络中允许消息被任意修改
+    - 包括重写消息内容
+    - 他们大部分不会发生在现实网络中，但也只是大部分，不表示没有;
 
-## Low level protocols
+## 低层的协议
 
 ### TCP
 
 - TCP *works*. Use it.
-  - Not perfect; you can go faster
-  - But you'll know when this is the case
+  - 不完美，但是基于它你能走的更加快;
 - In practice, TCP prevents duplicates and reorders in the context of a single
   TCP conn
-  - But you're probably gonna open more than one connection
-  - If for no other reason than TCP conns eventually fail
-  - And when that happens, you'll either a.) have missed messages or b.) retry
-  - You can *reconstruct* an ordering by encoding your own sequence numbers on
-    top of TCP
+- 在现实环境中，tcp协议能保证一个连接中重复、乱序的问题;
+  - 但是你可能打开了多余一个的连接
+  - 如果没有其他原因，TCP conns最终会失败
+  - 当这些发生的时候，你将会有两个选择:
+    - 1. 抛弃这个包
+    - 2. 基于tcp协议，在应用层来保证数据的准确性
 
 ### UDP
 
-- Same addressing rules as TCP, but no stream invariants
-- Lots of people want UDP "for speed"
-  - Don't consider that routers and nodes can and will arbitrarily drop packets
-  - Don't consider that their packets *will* be duplicated
-  - And reordered
-  - "But at least it's unbiased right?"
-    - WRONG!
-  - This causes all kinds of havoc in, say, metrics collection
-  - And debugging it is *hard*
-  - TCP gives you flow control and repacks logical messages into packets
-    - You'll need to re-build flow-control and backpressure
-  - TLS over UDP is a thing, but tough
-- UDP is really useful where TCP FSM overhead is prohibitive
-  - Memory pressure
-  - Lots of short-lived conns and socket reuse
+- 与tcp类似，但是不是以流的方式传播;
+- 许多人使用UDP是为了速度;
+- 在TCP FSM开销过高的情况下，UDP非常有用
+  - 内存压力
+  - 太多的短连接和socket重用
 - Especially useful where best-effort delivery maps well to the system goals
-  - Voice calls: people will apologize and repeat themselves
-  - Games: stutters and lag, but catch up later
-  - Higher-level protocols impose sanity on underlying chaos
+- 特别适用于那些只需要尽力去完成系统目标的系统; 
+  - 语音和视频聊天
+  - 游戏
+  - 有更加高层的协议来管理这些问题；基于UDP去实现流控、去重、重试、排序等功能,在应用层做;
 
+## 时钟
 
-## Clocks
+- 当一个系统被分裂成多个部门,我们仍然有一些需求需要保证事务的顺序性;  
+- 时钟能保证事务的顺序: 先是这个，然后是那个;
 
-- When a system is split into independent parts, we still want some kind of
-  *order* for events
-- Clocks help us order things: first this, THEN that
-
-### Wall Clocks
+### 物理时钟
 
 - In theory, the operating system clock gives you a partial order on system events
-  - Caveat: NTP is probably not as good as you think
-  - Caveat: Definitely not well-synced between nodes
-  - Caveat: Hardware can drift
-  - Caveat: By *centuries*
+- 理论上，操作系统时钟为您提供系统事件的部分顺序
+  - 警告: NTP服务没有你想象中那么好
+  - 警告: 节点之间没有很好的同步
+  - 警告: 硬件也是会飘的
+  - 警告: By centuries
     - NTP might not care
     - http://rachelbythebay.com/w/2017/09/27/2153/
-  - Caveat: NTP can still jump the clock backwards (default: delta > 128 ms)
+  - 警告: NTP仍然会跳
     - https://www.eecis.udel.edu/~mills/ntp/html/clock.html
-  - Caveat: POSIX time is not monotonic by *definition*
+  - 警告: Posix时间戳并不是单调递增
     - Cloudflare 2017: Leap second at midnight UTC meant time flowed backwards
     - At the time, Go didn't offer access to CLOCK_MONOTONIC
     - Computed a negative duration, then fed it to rand.int63n(), which paniced
     - Caused DNS resolutions to fail: 1% of HTTP requests affected for several hours
     - https://blog.cloudflare.com/how-and-why-the-leap-second-affected-cloudflare-dns/
-  - Caveat: The timescales you want to measure may not be attainable
-  - Caveat: Threads can sleep
-  - Caveat: Runtimes can sleep
-  - Caveat: OS's can sleep
-  - Caveat: "Hardware" can sleep
-- Just don't.
+  - 警告: 您想要测量的时间尺度可能无法实现
+  - 警告: 线程会休眠
+  - 警告: Runtimes can sleep
+  - 警告: OS's can sleep
+  - 警告: "Hardware" can sleep
+- 不要用物理时钟
 
-### Lamport Clocks
+### Lamport Clocks[??]
 
 - Lamport 1977: "Time, Clocks, and the Ordering of Events in a Distributed System"
   - One clock per process
@@ -214,9 +157,9 @@ Lamport, 1987:
   events
   - But that order could be pretty unintuitive
 
-### Vector Clocks
+### Vector Clocks(向量时钟)
 
-- Generalizes Lamport clocks to a vector of all process clocks
+- 将Lamport时钟推广到所有进程时钟的向量
 - `t_i' = max(t_i, t_msg_i)`
 - For every operation, increment that process' clock in the vector
 - Provides a partial causal order
@@ -236,7 +179,7 @@ Lamport, 1987:
   - Dotted Version Vectors - for client/server systems, orders *more* events
   - Interval Tree Clocks - for when processes come and go
 
-### GPS & Atomic Clocks
+### GPS & Atomic Clocks[google]
 
 - Much better than NTP
   - Globally distributed total orders on the scale of milliseconds
@@ -253,45 +196,37 @@ Lamport, 1987:
     future will offer dedicated HW interfaces for bounded-accuracy time.
 
 
-## Review
+## 总结
 
-We've covered the fundamental primitives of distributed systems. Nodes
-exchange messages through a network, and both nodes and networks can fail in
-various ways. Protocols like TCP and UDP give us primitive channels for
-processes to communicate, and we can order events using clocks. Now, we'll
-discuss some high-level *properties* of distributed systems.
+我们已经覆盖了分布式系统的主要功能点，节点之间通过网络来交换消息；节点之间和网络之间都可能因为各种方式失败; 类似于TCP和UDP这样的协议给我们一种比较原始的通道能用来处理通信，并且我们使用时钟来保证事务的顺序性; 接下里我们将讨论更加高级的分布式系统的属性;
 
 
+## 可用性
+
+- 可用性基本上是成功的尝试操作的一小部分。
+
+### Total availability[全可用性]
+
+- 幼稚的认为: 每一个操作都能成功
+- 在一致性的语义中, 每一个在非错误节点上的操作都能成功
+    - 关于失败的节点，您无能为力
 
 
-## Availability
+### Sticky availability[粘性可用性]
 
-- Availability is basically the fraction of attempted operations which succeed.
+- 针对非故障节点的每个操作都会成功
+  - 这限制了客户端尝尝会连接到相同的节点上;
 
-### Total availability
+### High availability[高可用性]
 
-- Naive: every operation succeeds
-- In consistency lit: every operation on a non-failing node succeeds
-  - Nothing you can do about the failing nodes
+- 比非分布式系统更加好的可用性
 
-### Sticky availability
+### Majority available[大部分可用性]
 
-- Every operation against a non-failing node succeeds
-  - With the constraint that clients always talk to the same nodes
+- 与集群中大多数节点操作是成功的
+- 如果与集群中小部分节点操作会可能是失败的
 
-### High availability
-
-- Better than if the system *weren't* distributed.
-- e.g. tolerant of up to f failures, but no more
-- Maybe some operations fail
-
-### Majority available
-
-- Operations succeed *if* they occur on a node which can communicate
-  with a majority of the cluster
-- Operations against minority components may fail
-
-### Quantifying availability
+### Quantifying availability[量化可用性]
 
 - We talk a lot about "uptime"
   - Are systems up if nobody uses them?
@@ -310,36 +245,33 @@ discuss some high-level *properties* of distributed systems.
 - Ideally: integral of happiness delivered by your service?
 
 
-## Consistency
+## Consistency->[一致性](http://www.cs.cornell.edu/courses/cs734/2000FA/cached%20papers/SessionGuaranteesPDIS_1.html#HEADING7)
 
 - A consistency model is the set of "safe" histories of events in the system
+- 一致性模式是系统中事件的安全记录的集合;
 
-### Monotonic Reads
+### Monotonic Reads[单调读]
 
-- Once I read a value, any subsequent read will return that state or later values
+- 一旦已经读到过一个value，那么后面的所有其他的读都必须能读到这个value或者更新的value
 
-### Monotonic Writes
+### Monotonic Writes[单调写]
 
-- If I make a write, any subsequent writes I make will take place *after* the
-  first write
+- 一旦写成功之后，后续一系列的写操作都是基于这次写而发生的;
 
-### Read Your Writes
+### Read Your Writes[读你写的]
 
-- Once I write a value, any subsequent read I perform will return that write
-  (or later values)
+- 一旦你写入value，后面一系列的读操作都能读到这个value或者更新的value;
 
 ### Writes Follow Reads
 
 - Once I read a value, any subsequent write will take place after that read
+- 一旦我读取了一个值，任何后续写入都将在读取之后进行
 
 ### Serializability
 
-- All operations (transactions) appear to execute atomically
-- In some order
-  - No constraints on what that order is
-  - Perfectly okay to read from the past, for instance
+- 所有操作(事务)都必须原子执行
 
-### Causal consistency
+### Causal consistency[因果一致性]
 
 - Suppose operations can be linked by a DAG of causal relationships
   - A write that follows a read, for instance, is causally related
@@ -349,7 +281,7 @@ discuss some high-level *properties* of distributed systems.
   must have executed on that node
 - Concurrent ops can be freely reordered
 
-### Sequential consistency
+### Sequential consistency[顺序一致性]
 
 - Like causal consistency, constrains possible orders
 - All operations appear to execute atomically
@@ -357,7 +289,7 @@ discuss some high-level *properties* of distributed systems.
   - Operations from a given process always occur in order
   - But nodes can lag behind
 
-### Linearizability
+### Linearizability[线性一致性]
 
 - All operations appear to execute atomically
 - Every process agrees on the order of operations
@@ -365,30 +297,27 @@ discuss some high-level *properties* of distributed systems.
   times
 - Real-time, external constraints let us build very strong systems
 
-### ACID isolation levels
+### ACID隔离性等级
 
-- ANSI SQL's ACID isolation levels are weird
-  - Basically codified the effects of existing vendor implementations
-  - Definitions in the spec are ambiguous
-- Adya 1999: Weak Consistency: A Generalized Theory and Optimistic
-  Implementations for Distributed Transactions
-  - Each ANSI SQL isolation level prohibits a weird phenomenon
-  - Read Uncommitted
+- ANSI SQL's ACID关于隔离的定义是混乱的
+  - 规定中对一些定义是含糊不清并且有二义性
+- Adya 1999: 弱一致性行: 分布式事务的广义理论与乐观实现
+  - Read Uncommitted(未提交读)
     - Prevents P0: *dirty writes*
       - w1(x) ... w2(x)
       - Can't write over another transaction's data until it commits
     - Can read data while a transaction is still modifying it
     - Can read data that will be rolled back
-  - Read Committed
+  - Read Committed(已提交读)
     - Prevents P1: *dirty reads*
       - w1(x) ... r2(x)
       - Can't read a transaction's uncommitted values
-  - Repeatable Read
+  - Repeatable Read(可重复读)
     - Prevents P2: *fuzzy reads*
       - r1(x) ... w2(x)
       - Once a transaction reads a value, it won't change until the transaction
         commits
-  - Serializable
+  - Serializable(可串行化)
     - Prevents P3: *phantoms*
       - Given some predicate P
       - r1(P) ... w2(y in P)
@@ -401,7 +330,7 @@ discuss some high-level *properties* of distributed systems.
     - Read locks are held until cursor is removed, or commit
       - At commit time, cursor is upgraded to a writelock
     - Prevents lost-update
-  - Snapshot Isolation
+  - Snapshot Isolation(快照独立 MVCC)
     - Transactions always read from a snapshot of committed data, taken before
       the transaction begins
     - Commit can only occur if no other committed transaction with an
@@ -409,29 +338,7 @@ discuss some high-level *properties* of distributed systems.
       *we* wrote
       - First-committer-wins
 
-### Does any of this actually matter?
-
-- Real world just isn't that concurrent
-- Plenty of companies get by on Read Committed
-- But *malicious* attackers can *induce* concurrency
-  - Flexcoin
-    - Bitcoin exchange which allowed users to create money by shuffling between accounts
-    - Attacked in 2014, 365,000 GBP stolen
-    - Exchange collapsed altogether
-  - Poloniex
-    - Concurrent withdrawals were improperly isolated, allowing users to overspend
-    - Safety audits didn't notice negative balances
-    - 12.3% of exchange funds stolen; loss spread among users
-  - [Warszawski & Bailis 2017: Acidrain](http://www.bailis.org/papers/acidrain-sigmod2017.pdf)
-    - Automated identification of consistency violation in web apps
-    - e.g. Buy one gift card, then spend it an unlimited number of times
-    - e.g. Buy a pen, add a laptop to cart during checkout, get a free laptop
-    - Vulnerabilities found in over 50% of all eCommerce web sites
-      - Weak DB isolation defaults
-      - Improper use of transactional scope
-      - Failing to use any transactions whatsoever
-
-## Tradeoffs
+## 权衡
 
 - Ideally, we want total availability and linearizability
 - Consistency requires coordination
@@ -442,12 +349,12 @@ discuss some high-level *properties* of distributed systems.
   - More consistency is more intuitive
   - More consistency is less available
 
-### Availability and Consistency
+### 可用性和一致性
 
-- CAP Theorem: Linearizability OR total availability
-- But wait, there's more!
+- CAP理论: 线性一致性 或者 全可用
+- 还有其他的理论
   - Bailis 2014: Highly Available Transactions: Virtues and Limitations
-  - Other theorems disallow totally or sticky available...
+  - Other theorems disallow totally or sticky available...(其他的理论中去掉了全可用性和粘性可用性)
     - Strong serializable
     - Serializable
     - Repeatable Read
@@ -466,7 +373,7 @@ discuss some high-level *properties* of distributed systems.
     - Monotonic Writes
 
 
-### Harvest and Yield
+### 收获和产量
 
 - Fox & Brewer, 1999: Harvest, Yield, and Scalable Tolerant Systems
   - Yield: probability of completing a request
@@ -485,7 +392,7 @@ discuss some high-level *properties* of distributed systems.
    - "As much as possible in 10ms, please"
    - "I need everything, and I understand you might not be able to answer"
 
-### Hybrid systems
+### 混合系统
 
 - So, you've got a spectrum of choices!
   - Chances are different parts of your infrastructure have different needs
@@ -497,18 +404,14 @@ discuss some high-level *properties* of distributed systems.
   - Small data is usually critical
   - Linearizable user ops, causally consistent social feeds
 
-### Review
+### 回顾
 
-Availability is a measure of how often operations succeed. Consistency models
-are the rules that govern what operations can happen and when. Stronger
-consistency models generally come at the cost of performance and availability.
-Next, we'll talk about different ways to build systems, from weak to strong
-consistency.
+可用性用来量化操作成功的概率;一致性模型是管理可能发生的操作以及何时发生的规则; 强一致性模型通常需要有性能和可用性上的代价，下面我们将用不同的方法来构建弱一致性系统到强一致性系统
 
 
-## Avoid Consensus Wherever Possible
+## 尽可能的避免使用共识算法
 
-### CALM conjecture
+### CALM conjecture(CALM 猜想)
 
 - Consistency As Logical Monotonicity
   - If you can prove a system is logically monotonic, it is coordination free
@@ -544,7 +447,7 @@ consistency.
 - Global broadcast
   - Send a message to every other node
   - O(nodes)
-- Mesh networks
+- Mesh networks(网格网络)
   - Epidemic models
   - Relay to your neighbors
   - Propagation times on the order of max-free-path
@@ -599,7 +502,7 @@ consistency.
   - See also: COPS, Swift, Eiger, Calvin, etc
 
 
-## Fine, We Need Consensus, What Now?
+## 我们需要共识算法
 
 - The consensus problem:
   - Three process types
@@ -667,7 +570,7 @@ consistency.
     - A page of pseudocode -> several thousand lines of C++
 - Provides consensus on independent proposals
 - Typically deployed in majority quorums, 5 or 7 nodes
-- Several optimizations
+- Several optimizations (优化)
   - Multi-Paxos
   - Fast Paxos
   - Generalized Paxos
@@ -728,35 +631,28 @@ consistency.
 
 ## Review
 
-Systems which only add facts, not retract them, require less coordination to
-build. We can use gossip systems to broadcast messages to other processes,
-CRDTs to merge updates from our peers, and HATs for weakly isolated
-transactions. Serializability and linearizability require *consensus*, which we
-can obtain through Paxos, ZAB, VR, or Raft. Now, we'll talk about different
-*scales* of distributed systems.
+只添加事实而不是收回事实的系统需要较少的协调建立。我们可以使用gossip系统向其他进程广播消息，CRDT用于合并来自同行的更新，以及用于弱一致性的HAT交易。可串行性和线性化需要*共识*算法，我们可以通过Paxos，ZAB，VR或Raft; 下面我们将讨论关于分布式系统的扩展性
 
 
-
-## Characteristic latencies
+## 延迟(latency)的特点
 
 - Latency is *never* zero
-  - Bandwidth goes up and up but we're bumping up against the physical limits
-    of light and electrons
-  - Latency budget shapes your system design
-     - How many network calls can you afford?
-- Different kinds of systems have different definitions of "slow"
-  - Different goals
-  - Different algorithms
+- 延迟永远不会是0
+    - 虽然带宽在增长，但是它也违背不了物理的极限(光速)
+    - 对延迟的预算会影响你的系统设计
+        - 你可能需要关心系统需要进行多少次网络调用;
+- 不同的系统对于"慢"有着不同的定义
+    - 不同的目标
+    - 不同的算法
+  
+### 多核系统
 
-### Multicore systems
-
-- Multicore (and especially NUMA) architectures are sort of like a distributed system
-  - Nodes don't fail pathologically, but message exchange is slow!
-  - Synchronous network provided by a bus (e.g. Intel QPI)
-  - Whole complicated set of protocols in HW & microcode to make memory look
-    sane
-  - Non-temporal store instructions (e.g. MOVNTI)
-- They provide abstractions to hide that distribution
+- 多核(特别是NUMA)架构和分布式系统非常的类似
+  - 节点不会突然失败，但是节点之间的消息传递会很慢
+  - 通过总线来提供通过网络
+  - 通过在软件和硬件上建立一组复杂的协议来保证内存看上去清晰
+  - 非临时存储指令(比如 MOVNTI)
+- 他们通过抽象来隐藏分布式
   - MFENCE/SFENCE/LFENCE
     - Introduce a serialization point against load/store instructions
     - Characteristic latencies: ~100 cycles / ~30 ns
@@ -764,7 +660,7 @@ can obtain through Paxos, ZAB, VR, or Raft. Now, we'll talk about different
   - CMPXCHG Compare-and-Swap (sequentially consistent modification of memory)
   - LOCK
     - Lock the full memory subsystem across cores!
-- But those abstractions come with costs
+- 但是这些抽象也带来了损失
   - Hardware lock elision may help but is nascent
   - Blog: Mechanical Sympathy
   - Avoid coordination between cores wherever possible
@@ -776,7 +672,7 @@ can obtain through Paxos, ZAB, VR, or Raft. Now, we'll talk about different
     - Allows the processor to cheat as much as possible within a work unit
   - See Danica Porobic, 2016: [High Performance Transaction Processing on Non-Uniform Hardware Topologies](https://infoscience.epfl.ch/record/219117/files/EPFL_TH7023.pdf)
 
-### Local networks
+### 本地网络
 
 - You'll often deploy replicated systems across something like an ethernet LAN
 - Message latencies can be as low as 100 micros
@@ -834,20 +730,14 @@ can obtain through Paxos, ZAB, VR, or Raft. Now, we'll talk about different
   - Where sequential consistency is OK, cache reads locally!
     - You probably leverage caching in a single DC already
 
-### Review
+### 回顾
 
-We discussed three characteristic scales for distributed systems: multicore
-processors coupled with a synchronous network, computers linked by a LAN, and
-datacenters linked by the internet or dedicated fiber. CPU consequences are
-largely performance concerns: knowing how to minimize coordination. On LANs,
-latencies are short enough for many network hops before users take notice. In
-geographically replicated systems, high latencies drive eventually consistent
-and datacenter-pinned solutions.
+我们讨论了三种分布式系统的扩展方式: 通过同步网络连接的多核系统，通过局域网连接的分布式系统和通过专线、光纤连接的数据中心；多核系统中cpu交互是最终重要的性能中心，所以要知道如何去最小化cpu之间的协调; 在局域网中，系统的延迟已经足够的小; 在跨中心的备份系统中，高延迟推动了最终的一致性和数据中心固定解决方案。
 
 
-## Common distributed systems
+## 通用的分布式系统
 
-### Outsourced heaps
+### 外部内存缓存
 
 - Redis, memcached, ...
 - Data fits in memory, complex data structures
@@ -856,7 +746,7 @@ and datacenter-pinned solutions.
 - Or as a quick-and-dirty scratchpad for shared state between platforms
 - Not particularly safe
 
-### KV stores
+### KV stores(持久化的分布式kv存储)
 
 - Riak, Couch, Mongo, Cassandra, RethinkDB, HDFS, ...
 - Often 1,2,3 dimensions of keys
@@ -868,11 +758,11 @@ and datacenter-pinned solutions.
 - Often no transactions
 - Range of consistency models--often optional linearizable/sequential ops.
 
-### SQL databases
+### SQL databases(关系型数据库)
 
 - Postgres, MySQL, Percona XtraDB, Oracle, MSSQL, VoltDB, CockroachDB, ...
 - Defined by relational algebra: restrictions of products of records, etc
-- Moderate sized data sets
+- Moderate sized data sets(中等大小的数据集)
 - Almost always include multi-record transactions
 - Relations and transactions require coordination, which reduces scalability
 - Many systems are primary-secondary failover
@@ -882,20 +772,20 @@ and datacenter-pinned solutions.
 ### Search
 
 - Elasticsearch, SolrCloud, ...
-- Documents referenced by indices
+- Documents referenced by indices(存储的文件是为了索引)
 - Moderate-to-large data sets
 - Usually O(1) document access, log-ish search
 - Good scalability
 - Typically weak consistency
 
-### Coordination services
+### Coordination services(协调服务)
 
 - Zookeeper, etcd, Consul, ...
 - Typically strong (sequential or linearizable) consistency
-- Small data sets
-- Useful as a coordination primitive for stateless services
+- Small data sets(小量的数据集)
+- Useful as a coordination primitive for stateless services(为一些无状态服务做协调语义)
 
-### Streaming systems
+### Streaming systems(流式系统)
 
 - Storm, Spark...
 - Usually custom-designed, or toolkits to build your own.
@@ -904,7 +794,7 @@ and datacenter-pinned solutions.
 - High throughput
 - Weak consistency
 
-### Distributed queues
+### Distributed queues(分布式队列)
 
 - Kafka, Kestrel, Rabbit, IronMQ, ActiveMQ, HornetQ, Beanstalk, SQS, Celery, ...
 - Journals work to disk on multiple nodes for redundancy
@@ -933,23 +823,14 @@ and datacenter-pinned solutions.
     where a single socket write() could have sufficed
 - Queues can get you out of a bind when you've chosen a poor runtime
 
-### Review
+### 回顾
 
-We use data structure stores as outsourced heaps: they're the duct tape of
-distributed systems. KV stores and relational databases are commonly deployed
-as systems of record; KV stores use independent keys and are not well-suited to
-relational data, but offer improved scalability and partial failure vs SQL
-stores, which offer rich queries and strong transactional guarantees.
-Distributed search and coordination services round out our basic toolkit for
-building applications. Streaming systems are applied for continuous,
-low-latency processing of datasets, and tend to look more like frameworks than
-databases. Their dual, distributed queues, focus on the *messages* rather
-than the *transformations*.
+我们将具有一定结构的数据存储在外置内存系统中，他们是分布式系统之间的纽带; kv-store和关系型数据库通常是用来保存记录的;kvstore被用于存储一些独立的key并且不能与关系型数据库很好的配套; 但是对比关系型数据库它们有着更加好的扩展性和部分容错; 而sql存储主要是提供丰富的查询和强一致的事务保证;分布式搜索和协调服务完善了我们构建应用程序的基本工具包；流式处理被应用于持续的、低延迟的数据集处理，它更加倾向于是一种框架而不是数据库; 分布式队列更加注重的消息而非消息转化;
 
 
 ## A Pattern Language
 
-- General recommendations for building distributed systems
+- 对于构建分布式系统的一般建议
   - Hard-won experience
   - Repeating what other experts tell me
     - Over beers
@@ -959,9 +840,9 @@ than the *transformations*.
   - Stuff I just made up
   - YMMV
 
-### Don't distribute
+### Don't distribute(不要轻易分布式)
 
-- Rule 1: don't distribute where you don't have to
+- Rule 1: don't distribute where you don't have to()
   - Local systems have reliable primitives. Locks. Threads. Queues. Txns.
     - When you move to a distributed system, you have to build from ground up.
   - Is this thing small enough to fit on one node?
@@ -977,27 +858,27 @@ than the *transformations*.
   - Could we just stand up another one if it breaks?
   - Could manual intervention take the place of the distributed algorithm?
 
-### Use an existing distributed system
+### Use an existing distributed system(使用已经存在的分布式系统)
 
-- If we have to distribute, can we push the work onto some other software?
-  - What about a distributed database or log?
-  - Can we pay Amazon to do this for us?
-  - Conversely, what are the care and feeding costs?
-  - How much do you have to learn to use/operate that distributed system?
+- 假如你不得不用分布式，那是否可以将工作迁移到其他软件之上
+  - 分布式数据库和日志怎么样能满足你的要求不?
+  - 我们能支付亚马逊上的服务来满足我们的要求吗？
+  - 我们关心的和为此愿意付出价值的是什么？
+  - 你为了使用或者操作分布式系统需要学习的代价是多少?
 
-### Never fail
+### Never fail(从来也不会错误)
 
 - Buy really expensive hardware
+- 购买真正的昂贵的硬件
 - Make changes to software and hardware in a controlled fashion
   - Dry-run deployments against staging environments
 - Possible to build very reliable networks and machines
   - At the cost of moving slower, buying more expensive HW, finding talent
   - HW/network failure still *happens*, but sufficiently rare => low priority
 
-### Accept failure
+### Accept failure(接受错误)
 
-- Distributed systems aren't just characterized by *latency*, but by
-  *recurrent, partial failure*
+- 分布式系统的特点不仅仅只有延迟，还有经常性的部分错误;
 - Can we accept this failure and move on with our lives?
   - What's our SLA anyway?
   - Can we recover by hand?
@@ -1009,7 +890,7 @@ than the *transformations*.
   - Consciously choosing to recover *above* the level of the system
   - This is how financial companies and retailers do it!
 
-### Backups
+### Backups(备份)
 
 - Backups are essentially sequential consistency, BUT you lose a window of ops.
   - When done correctly
@@ -1022,7 +903,7 @@ than the *transformations*.
       - Distributed DB did its job correctly, but you told it to delete key
         data
 
-### Redundancy
+### Redundancy(冗余)
 
 - OK, so failure is less of an option
 - Want to *reduce the probability of failure*
@@ -1059,7 +940,7 @@ than the *transformations*.
       - Thundering-herd
       - TCP incast
 
-### Sharding
+### Sharding(分片)
 
 - The problem is too big
 - Break the problem into parts small enough to fit on a node
@@ -1106,7 +987,7 @@ than the *transformations*.
   - SaaS app: object ID can also encode customer ID
   - Twitter: tweet ID can encode user ID
 
-### Immutable values
+### Immutable values(不可变得value)
 
 - Data that never changes is trivial to store
   - Never requires coordination
@@ -1123,7 +1004,7 @@ than the *transformations*.
 - Requires garbage collection!
   - But there are good ways to do this
 
-### Mutable identities
+### Mutable identities(可变的value)
 
 - Pointers to immutable values
 - Pointers are small! Only metadata!
@@ -1143,7 +1024,7 @@ than the *transformations*.
   - See Rich Hickey's talks on Datomic architecture
   - See Pat Helland's 2013 RICON West keynote on Salesforce's storage
 
-### Confluence
+### 总结
 
 - Systems which are order-independent are easier to construct and reason about
 - Also helps us avoid coordination
@@ -1158,15 +1039,15 @@ than the *transformations*.
     - Combine with a sealing event (e.g. the day's end) to recover confluence
 - See Aiken, Widom, & Hellerstein 1992, "Behavior of Database Production Rules"
 
-### Backpressure
+### Backpressure(过载之后要怎么办)
 
 - Services which talk to each other are usually connected by *queues*
 - Service and queue capacity is finite
-- How do you handle it when a downstream service is unable to handle load?
-  1. Consume resources and explode
-  2. Shed load. Start dropping requests.
-  3. Reject requests. Ignore the work and tell clients it failed.
-  4. Apply backpressure to clients, asking them to slow down.
+- 当下游服务无法处理负载时，如何处理它
+  1. 资源无限被消耗然后挂掉
+  2. 丢弃过量的请求
+  3. 拒绝请求并且告诉客户端失败
+  4. 客户端能知道后端压力比较大,并且主动慢下来
 - 2-4 allow the system to catch up and recover
   - But backpressure reduces the volume of work that has to be retried
 - Backpressure defers choice to producers: compositional
@@ -1183,7 +1064,7 @@ than the *transformations*.
   - Bounded concurrency
 - See Zach Tellman, "Everything Will Flow"
 
-### Services for domain models
+### Services for domain models(域模型服务-云平台的多租户系统)
 
 - The problem is composed of interacting logical pieces
 - Pieces have distinct code, performance, storage needs
@@ -1273,38 +1154,29 @@ than the *transformations*.
     - Removes the need for network calls in test suites
     - Dramatic reduction in test runtime and dev environment complexity
 
-### Review
+### 回顾
 
-When possible, try to use a single node instead of a distributed system. Accept
-that some failures are unavoidable: SLAs and apologies can be cost-effective.
-To handle catastrophic failure, we use backups. To improve reliability, we
-introduce redundancy. To scale to large problems, we divide the problem into
-shards. Immutable values are easy to store and cache, and can be referenced by
-mutable identities, allowing us to build strongly consistent systems at large
-scale. As software grows, different components must scale independently,
-and we break out libraries into distinct services. Service structure goes
-hand-in-hand with teams.
+如果可能的话，用单节点来替换分布式系统; 需要接受一些失败是不可避免的, 不同SLA都是具有代价的; 为了处理突如其来的错误，我们使用容灾的方式；为了提升可靠性，我们介绍了备份的方案；为了解决扩展性这个问题，我们用分片来分离数据; 不可能改变的数据更加容易被存储和缓存，也可以被可变标示引用,允许我们建立更加强一致性的保证; 随着软件的增长，不同组成部分都需要做到独立扩展，所以我们将服务分离开来，类似于微服务的感觉;
 
 
 
-## Production Concerns
+## 生产环境遇到的问题
 
 - More than design considerations
 - Proofs are important, but real systems do IO
 
-### Distributed systems are supported by your culture
+### 分布式系统在你的环境中能被支持
 
-- Understanding a distributed system in production requires close cooperation
-  of people with many roles
-  - Development
-  - QA
-  - Operations
-- Empathy matters
-  - Developers have to care about production
-  - Ops has to care about implementation
-  - Good communication enables faster diagnosis
+- 了解生产中的分布式系统需要具有多种角色的人员的密切合作
+  - 开发
+  - 测试
+  - 运维
+- 同理心很重要
+  - 开发需要关心产品
+  - 运维需要关心实现
+  - 好的交流能更快的对话
 
-### Test everything
+### 测试每一个点
 
 - Type systems are great for preventing logical errors
   - Which reduces your testing burden
@@ -1347,7 +1219,7 @@ hand-in-hand with teams.
     - [Jeff Dean, 2013: The Tail at Scale](https://research.google.com/pubs/pub40801.html)
     - Consider speculative parallelism
 
-### Instrument everything
+### 监控每一个点
 
 - Slowness (and outright errors) in prod stem from the interactions *between*
   systems
@@ -1398,7 +1270,7 @@ hand-in-hand with teams.
       - Identification of critical paths
       - Performance modeling new algorithms before implementation
 
-### Logging
+### 记录
 
 - Logging is less useful at scale
   - Problems may not be localized to one node
@@ -1408,7 +1280,7 @@ hand-in-hand with teams.
   - Unstructured information is harder to aggregate
     - Log structured events
 
-### Shadow traffic
+### 真实压测
 
 - Load tests are only useful insofar as the simulated load matches the actual
   load
@@ -1418,7 +1290,7 @@ hand-in-hand with teams.
   - Awesome: shadowing live prod traffic to your staging/QA nodes
 - See Envoy from Lyft
 
-### Versioning
+### 版本管理
 
 - Protocol versioning is, as far as I know, a wide-open problem
   - Do include a version tag with all messages
@@ -1426,7 +1298,7 @@ hand-in-hand with teams.
   - Inform clients when their request can't be honored
     - And instrument this so you know which systems have to be upgraded
 
-### Rollouts
+### Rollouts(感觉是灰度发布的)
 
 - Rollouts are often how you fix problems
 - Spend the time to get automated, reliable deploys
@@ -1443,7 +1315,7 @@ hand-in-hand with teams.
   - Consider shadowing traffic in prod and comparing old/new versions
     - Good way to determine if new code is faster & correct
 
-### Feature flags
+### Feature flags(修改记录)
 
 - We want incremental rollouts of a changeset after a deploy
   - Introduce features one by one to watch their impact on metrics
@@ -1458,7 +1330,7 @@ hand-in-hand with teams.
 - When things go wrong, you can *tune* the system's behavior
   - When coordination service is down, fail *safe*!
 
-### Chaos engineering
+### Chaos engineering(破坏者)
 
 - Breaking things in production
   - Forces engineers to handle failure appropriately *now*, not in response to
@@ -1476,13 +1348,13 @@ hand-in-hand with teams.
 
 ### Oh no, queues
 
-- Every queue is a place for things to go horribly, horribly wrong
-  - No node has unbounded memory. Your queues *must* be bounded
-  - But how big? Nobody knows
-  - Instrument your queues in prod to find out
-- Queues exist to smooth out fluctuations in load
-  - Improves throughput at expense of latency
-  - If your load is higher than capacity, no queue will save you
+- 每个队列都是一个可怕的地方，可怕的错误
+  - 没有一个节点具有无限内存，所以你的队列必须是有界的;
+  - 设置多大的队列呢？没人知道
+  - 周期性的监控你的队列长度
+- 队列可以平滑负载
+  - 通过延迟为代价来增加吞吐量;
+  - 假如你的负载高于你的容量，那么队列不能为你做什么
     - Shed load or apply backpressure when queues become full
     - Instrument this
       - When load-shedding occurs, alarm bells should ring
@@ -1496,25 +1368,8 @@ hand-in-hand with teams.
     - See Zach Tellman - Everything Will Flow
 
 
-## Review
+## 回顾
 
-Running distributed systems requires cooperation between developers, QA, and
-operations engineers. Static analysis, and a test suite including example- and
-property-based tests, can help ensure program correctness, but understanding
-production behavior requires comprehensive instrumentation and alerting. Mature
-distributed systems teams often invest in tooling: traffic shadowing,
-versioning, incremental deploys, and feature flags. Finally, queues require
-special care.
+运行分布式系统需要开发者、qa和运维工程师一起配合; 静态分析、测试框架都能更加保证程序的正确性;而且需要对生产环境的系统设置报警和监控; 维护分布式系统的团队还需要一些工具：线上流量复制、版本管理、增量发布和修改记录； 最后如果需要队列，那么必须对它进行特别的监控;
 
-## Further reading
 
-### Online
-
-- Mixu has a delightful book on distributed systems with incredible detail. http://book.mixu.net/distsys/
-- Jeff Hodges has some excellent, production-focused advice. https://www.somethingsimilar.com/2013/01/14/notes-on-distributed-systems-for-young-bloods/
-- The Fallacies of Distributed Computing is a classic text on mistaken assumptions we make designing distributed systems. http://www.rgoarchitects.com/Files/fallacies.pdf
-- Christopher Meiklejohn has a list of key papers in distributed systems. http://christophermeiklejohn.com/distributed/systems/2013/07/12/readings-in-distributed-systems.html
-
-### Trees
-
-- Nancy Lynch's "Distributed Algorithms" is a comprehensive overview of the field from a more theoretical perspective
